@@ -1,0 +1,46 @@
+# --- Data Files ---
+# Keep the repo lightweight; tell users in README how to obtain data locally.
+data/
+*.csv
+*.parquet
+*.feather
+
+# If you want to track specific small assets under artifacts/, unignore them here:
+!artifacts/
+!artifacts/scatter_sample.parquet
+
+# --- Jupyter Notebook Cache ---
+.ipynb_checkpoints/
+.notebook_cache/
+
+# --- Python Cache ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Test / Type-check / Lint caches (optional but useful) ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Logs ---
+*.log
+
+# --- Streamlit Secrets ---
+.streamlit/secrets.toml
+
+# --- Virtual Environment ---
+.venv/
+venv/
+env/
+
+# --- Env files (API keys, tokens, etc.) ---
+.env
+.env.*
+
+# --- IDE / OS Specific ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

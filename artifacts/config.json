@@ -1,0 +1,118 @@
+{
+  "RANDOM_STATE": 42,
+  "kmeans_k": 3,
+  "winsor_cols": [
+    "AMT_INCOME_TOTAL",
+    "AMT_CREDIT",
+    "AMT_ANNUITY",
+    "CREDIT_TO_INCOME_RATIO",
+    "ANNUITY_TO_INCOME_RATIO",
+    "CREDIT_TERM",
+    "AGE_YEARS",
+    "YEARS_EMPLOYED"
+  ],
+  "winsor_low_quantile": 0.001,
+  "winsor_high_quantile": 0.999,
+  "winsor_low_bounds": {
+    "AMT_INCOME_TOTAL": 31500.0,
+    "AMT_CREDIT": 47970.0,
+    "AMT_ANNUITY": 3932.982,
+    "CREDIT_TO_INCOME_RATIO": 0.30890893333333336,
+    "ANNUITY_TO_INCOME_RATIO": 0.02141422857142857,
+    "CREDIT_TERM": 8.32639467110741,
+    "AGE_YEARS": 21.257534246575343,
+    "YEARS_EMPLOYED": 0.14794520547945206
+  },
+  "winsor_high_bounds": {
+    "AMT_INCOME_TOTAL": 900000.0,
+    "AMT_CREDIT": 2517300.0,
+    "AMT_ANNUITY": 110047.5,
+    "CREDIT_TO_INCOME_RATIO": 19.293778000000597,
+    "ANNUITY_TO_INCOME_RATIO": 0.7279860571428635,
+    "CREDIT_TERM": 37.91563275434243,
+    "AGE_YEARS": 68.5068493150685,
+    "YEARS_EMPLOYED": 39.78630136986301
+  },
+  "model_input_cols": [
+    "CODE_GENDER",
+    "CNT_CHILDREN",
+    "NAME_FAMILY_STATUS",
+    "NAME_EDUCATION_TYPE",
+    "AMT_INCOME_TOTAL",
+    "NAME_INCOME_TYPE",
+    "NAME_CONTRACT_TYPE",
+    "AMT_CREDIT",
+    "AMT_ANNUITY",
+    "EXT_SOURCE_2",
+    "EXT_SOURCE_3",
+    "AGE_YEARS",
+    "YEARS_EMPLOYED",
+    "CREDIT_TO_INCOME_RATIO",
+    "ANNUITY_TO_INCOME_RATIO",
+    "EMPLOYED_TO_AGE_RATIO",
+    "CREDIT_TERM"
+  ],
+  "categorical_features": [
+    "CODE_GENDER",
+    "NAME_FAMILY_STATUS",
+    "NAME_EDUCATION_TYPE",
+    "NAME_INCOME_TYPE",
+    "NAME_CONTRACT_TYPE"
+  ],
+  "numeric_features": [
+    "CNT_CHILDREN",
+    "AMT_INCOME_TOTAL",
+    "AMT_CREDIT",
+    "AMT_ANNUITY",
+    "EXT_SOURCE_2",
+    "EXT_SOURCE_3",
+    "AGE_YEARS",
+    "YEARS_EMPLOYED",
+    "CREDIT_TO_INCOME_RATIO",
+    "ANNUITY_TO_INCOME_RATIO",
+    "EMPLOYED_TO_AGE_RATIO",
+    "CREDIT_TERM"
+  ],
+  "ohe_categories": {
+    "CODE_GENDER": [
+      "F",
+      "M",
+      "XNA"
+    ],
+    "NAME_FAMILY_STATUS": [
+      "Civil marriage",
+      "Married",
+      "Separated",
+      "Single / not married",
+      "Unknown",
+      "Widow"
+    ],
+    "NAME_EDUCATION_TYPE": [
+      "Academic degree",
+      "Higher education",
+      "Incomplete higher",
+      "Lower secondary",
+      "Secondary / secondary special"
+    ],
+    "NAME_INCOME_TYPE": [
+      "Businessman",
+      "Commercial associate",
+      "Maternity leave",
+      "Pensioner",
+      "State servant",
+      "Student",
+      "Unemployed",
+      "Working"
+    ],
+    "NAME_CONTRACT_TYPE": [
+      "Cash loans",
+      "Revolving loans"
+    ]
+  },
+  "versions": {
+    "python": "3.13.5",
+    "numpy": "2.1.3",
+    "pandas": "2.2.3",
+    "sklearn": "1.6.1"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "auc_raw": 0.732,
+  "auc_cal": 0.732,
+  "prauc_raw": 0.213,
+  "prauc_cal": 0.212,
+  "gini": 0.464,
+  "ks": 0.342,
+  "threshold_youden": 0.08170918125791363,
+  "tpr_at_threshold": 0.665,
+  "fpr_at_threshold": 0.323,
+  "confusion_matrix": {
+    "tn": 38261,
+    "fp": 18277,
+    "fn": 1661,
+    "tp": 3304
+  }
+}
