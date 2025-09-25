@@ -1,4 +1,4 @@
-# Home Credit — Credit Risk Analysis & Segmentation
+# Home Credit — Credit Risk Analysis & Segmentation denemeee
 
 An end-to-end credit risk project featuring customer **segmentation (K-Means)** and a **credit scoring model (calibrated Logistic Regression)**, deployed as an interactive **Streamlit** application.
 
