@@ -31,7 +31,7 @@ def sync_mpl_with_streamlit_theme():
     })
 
 sync_mpl_with_streamlit_theme()
-st.title("🏦 Credit Risk Simulator")
+st.title("🏦 Credit Risk SimulatorTest")
 st.caption("Home Credit (application_train.csv) • Calibrated Logistic Regression (final decision) + K-Means Segment Interpretation")
 
 ART = Path("artifacts")
