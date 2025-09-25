@@ -53,8 +53,8 @@ The analysis in this repository follows a two-step process:
 
 **1. Clone the repository**
 ```bash
-git clone https://github.com/<EkremKarnas>/<Credit-Risk-Analysis-Portfolio>.git
-cd <Credit-Risk-Analysis-Portfolio>
+git clone https://github.com/EkremKarnas/Credit-Risk-Analysis-Portfolio.git
+cd Credit-Risk-Analysis-Portfolio
 ```
 **2. (Recommended) Create and activate a virtual environment**
 ```bash
