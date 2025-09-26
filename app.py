@@ -11,6 +11,17 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import matplotlib as mpl
 
+# --- Streamlit container compatibility helper (Cloud'da eski sürümler için) ---
+def box():
+    """
+    Streamlit >= 1.29'da st.container(border=True) vardır.
+    Daha eski sürümlerde 'border' parametresi yoktur ve TypeError atar.
+    Bu wrapper iki durumda da çalışır.
+    """
+    try:
+        return st.container(border=True)
+    except TypeError:
+        return st.container()
 # -----------------------------
 # Page Configuration
 # -----------------------------
@@ -446,7 +457,7 @@ if st.session_state.get("valid_run") and res:
 
     # Neden?
     t = res["trace"]
-    with st.container(border=True):
+    with box():
         st.markdown("#### 🧭 Why this decision?")
         st.markdown(
             f"- **Rule fired:** `{res['rule_tag']}`  \n"
