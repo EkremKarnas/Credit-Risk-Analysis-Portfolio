@@ -15,6 +15,7 @@ import matplotlib as mpl
 # Page Configuration
 # -----------------------------
 st.set_page_config(page_title="Credit Risk Simulator", layout="wide")
+
 def sync_mpl_with_streamlit_theme():
     bg  = st.get_option("theme.backgroundColor")
     sec = st.get_option("theme.secondaryBackgroundColor")
@@ -37,41 +38,92 @@ st.caption("Home Credit (application_train.csv) • Calibrated Logistic Regressi
 ART = Path("artifacts")
 
 # -----------------------------
-# Session state (to hide stale results after input changes)
+# Session state & flags
 # -----------------------------
-# Initialize session state variables if they don't exist.
-# This prevents errors on the first run.
 if "valid_run" not in st.session_state:
     st.session_state["valid_run"] = False
 if "results" not in st.session_state:
     st.session_state["results"] = None
 
-# A flag to control behavior: if True, soft warnings will also block the final rendering.
+# Yumuşak uyarılarda da bloklamak istersen True
 BLOCK_ON_WARNINGS = True
+
+# Varsayılan widget değerlerini bir kez yükle
+DEFAULTS = {
+    "AGE_YEARS": 40.0,
+    "YEARS_EMPLOYED": 5.0,
+    "AMT_INCOME_TOTAL": 180_000.0,
+    "CNT_CHILDREN": 0,
+    "AMT_CREDIT": 600_000.0,
+    "AMT_ANNUITY": 30_000.0,
+    "EXT_SOURCE_2": 0.55,
+    "EXT_SOURCE_3": 0.50,
+    "CODE_GENDER": "F",
+    "NAME_FAMILY_STATUS": "Married",
+    "NAME_EDUCATION_TYPE": "Secondary / secondary special",
+    "NAME_INCOME_TYPE": "Working",
+    "NAME_CONTRACT_TYPE": "Cash loans",
+}
+for k, v in DEFAULTS.items():
+    st.session_state.setdefault(k, v)
+
+# ---- Quick Presets (3 persona) ---------------------------------------------
+PRESETS = {
+    "🟢 Low Risk (Pro)": {
+        "AGE_YEARS": 46.0, "YEARS_EMPLOYED": 18.0,
+        "AMT_INCOME_TOTAL": 1_200_000.0, "AMT_CREDIT": 800_000.0, "AMT_ANNUITY": 120_000.0,
+        "EXT_SOURCE_2": 0.72, "EXT_SOURCE_3": 0.70, "CNT_CHILDREN": 1,
+        "CODE_GENDER": "F", "NAME_FAMILY_STATUS": "Married",
+        "NAME_EDUCATION_TYPE": "Higher education", "NAME_INCOME_TYPE": "Working",
+        "NAME_CONTRACT_TYPE": "Cash loans",
+    },
+    "🟠 Medium Debt": {
+        "AGE_YEARS": 39.0, "YEARS_EMPLOYED": 7.0,
+        "AMT_INCOME_TOTAL": 600_000.0, "AMT_CREDIT": 1_500_000.0, "AMT_ANNUITY": 210_000.0,
+        "EXT_SOURCE_2": 0.50, "EXT_SOURCE_3": 0.48, "CNT_CHILDREN": 2,
+        "CODE_GENDER": "M", "NAME_FAMILY_STATUS": "Married",
+        "NAME_EDUCATION_TYPE": "Incomplete higher", "NAME_INCOME_TYPE": "Businessman",
+        "NAME_CONTRACT_TYPE": "Cash loans",
+    },
+    "🔴 High Risk (Short Emp.)": {
+        "AGE_YEARS": 28.0, "YEARS_EMPLOYED": 0.8,
+        "AMT_INCOME_TOTAL": 180_000.0, "AMT_CREDIT": 900_000.0, "AMT_ANNUITY": 180_000.0,
+        "EXT_SOURCE_2": 0.28, "EXT_SOURCE_3": 0.30, "CNT_CHILDREN": 0,
+        "CODE_GENDER": "M", "NAME_FAMILY_STATUS": "Single / not married",
+        "NAME_EDUCATION_TYPE": "Incomplete higher", "NAME_INCOME_TYPE": "Commercial associate",
+        "NAME_CONTRACT_TYPE": "Cash loans",
+    },
+}
+
+def apply_preset(values: dict):
+    """Write preset values into session_state using the same widget keys."""
+    for k, v in values.items():
+        st.session_state[k] = v
+    # Mantıksal güvenlik: Years Employed > Age olmasın
+    st.session_state["YEARS_EMPLOYED"] = min(
+        float(st.session_state.get("YEARS_EMPLOYED", 0.0)),
+        float(st.session_state.get("AGE_YEARS", 40.0))
+    )
+    st.rerun()
 
 # -----------------------------
 # Helper Functions & Resources
 # -----------------------------
-@st.cache_resource       # Crucial for performance: loads heavy models and configs only once.
+@st.cache_resource
 def load_artifacts():
     """Loads all required artifacts (models, preprocessors, configs) from the disk."""
-    # Load the main configuration file, which stores metadata and parameters.
     with (ART / "config.json").open("r", encoding="utf-8") as f:
         cfg = json.load(f)
 
-    # Load segmentation assets
     preproc_kmeans = load(ART / "preprocessor_kmeans.joblib")
     kmeans_k3      = load(ART / "kmeans_k3.joblib")
 
-    # Load Logistic Regression assets
-    cal_lr         = load(ART / "logreg_calibrated.joblib")  # Calibrated model for the final decision
-    lr_raw         = load(ART / "logreg_raw.joblib")         # Raw pipeline, kept for reference and analysis
+    cal_lr         = load(ART / "logreg_calibrated.joblib")
+    lr_raw         = load(ART / "logreg_raw.joblib")
 
-    # Load the decision threshold from its own file
     with (ART / "threshold.json").open("r", encoding="utf-8") as f:
         thr = json.load(f)["youden_threshold"]
 
-    # (Optional) Load pre-calculated performance metrics for the model card display
     metrics = None
     if (ART / "metrics.json").exists():
         with (ART / "metrics.json").open("r", encoding="utf-8") as f:
@@ -79,18 +131,15 @@ def load_artifacts():
 
     return cfg, preproc_kmeans, kmeans_k3, cal_lr, lr_raw, float(thr), metrics
 
-# Load all necessary artifacts once and store them in global-like variables.
 CFG, PRE_KM, KM3, CAL_LR, LR_RAW, THR, METRICS = load_artifacts()
 
-# Unpack key settings from the config file for cleaner access throughout the app.
 WIN_COLS   = CFG["winsor_cols"]
 W_LOW      = CFG["winsor_low_bounds"]
 W_HIGH     = CFG["winsor_high_bounds"]
 INPUT_COLS = CFG["model_input_cols"]
-OHE_CATS   = CFG.get("ohe_categories", {})  # Use .get for safety if key is missing
+OHE_CATS   = CFG.get("ohe_categories", {})
 
 def apply_winsor(df: pd.DataFrame) -> pd.DataFrame:
-    """Applies Winsorization using the exact same boundaries as in the notebook."""
     df = df.copy()
     for c in WIN_COLS:
         if c in df.columns:
@@ -100,28 +149,20 @@ def apply_winsor(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def compute_engineered(df: pd.DataFrame) -> pd.DataFrame:
-    """Generates derived features, ensuring consistency with the notebook's logic."""
     df = df.copy()
-    def safe_div(a, b): # A helper function to prevent division-by-zero errors
+    def safe_div(a, b):
         a = pd.to_numeric(a, errors="coerce")
         b = pd.to_numeric(b, errors="coerce")
         return pd.Series(np.where((b > 0) & np.isfinite(a) & np.isfinite(b), a / b, np.nan), index=a.index)
 
-    # Calculate key financial ratios
     df["CREDIT_TO_INCOME_RATIO"]  = safe_div(df["AMT_CREDIT"],  df["AMT_INCOME_TOTAL"])
     df["ANNUITY_TO_INCOME_RATIO"] = safe_div(df["AMT_ANNUITY"], df["AMT_INCOME_TOTAL"])
     df["EMPLOYED_TO_AGE_RATIO"]   = safe_div(df["YEARS_EMPLOYED"], df["AGE_YEARS"])
     df["CREDIT_TERM"]             = safe_div(df["AMT_CREDIT"], df["AMT_ANNUITY"])
     return df
 
-# -------- Input validation (hard block on errors; optionally block on warnings) --------
 def validate_row_inputs(row: dict):
-    """
-    Checks user inputs for logical inconsistencies before running the models.
-    Returns a list of hard errors (which block execution) and soft warnings.
-    """
     errs, warns = [], []
-    # Safely convert inputs to the correct types for validation
     age = float(row["AGE_YEARS"])
     years = float(row["YEARS_EMPLOYED"])
     inc = float(row["AMT_INCOME_TOTAL"])
@@ -131,24 +172,17 @@ def validate_row_inputs(row: dict):
     ext3 = float(row["EXT_SOURCE_3"])
     children = int(row["CNT_CHILDREN"])
 
-    # Hard constraints: these are logically impossible and must be fixed by the user.
-    if age < 18 or age > 85: errs.append("Age must be between 18 and 85.") # Assuming one can start working at 18
+    if age < 18 or age > 85: errs.append("Age must be between 18 and 85.")
     if years < 0: errs.append("Years Employed cannot be negative.")
     if years > age: errs.append("Years Employed cannot exceed Age.")
     if inc <= 0: errs.append("Annual Income must be positive.")
     if cred <= 0: errs.append("Credit Amount must be positive.")
     if ann <= 0: errs.append("Annuity must be positive.")
     if children < 0: errs.append("Number of Children cannot be negative.")
-
-    # External scores must be within the [0,1] range.
     if not (0 <= ext2 <= 1): errs.append("EXT_SOURCE_2 must be within [0, 1].")
     if not (0 <= ext3 <= 1): errs.append("EXT_SOURCE_3 must be within [0, 1].")
+    if ann > cred: errs.append("Annuity cannot exceed Credit Amount (implies term < 1 year).")
 
-    # Relationships between fields
-    if ann > cred:
-        errs.append("Annuity cannot exceed Credit Amount (implies term < 1 year).")
-
-    # Soft checks: these are not impossible, but highly unusual and worth noting.
     if inc > 0:
         cti = cred / inc
         if cti > 50:
@@ -157,44 +191,31 @@ def validate_row_inputs(row: dict):
         emp_age = years / age
         if emp_age > 1:
             errs.append("Employed/Age cannot exceed 1. Check Age / Years Employed.")
-
     return errs, warns
 
-# --- Local LR drivers (x * beta): return both positive and negative contributors ---
 def local_lr_drivers_signed(cal_lr, df_w: pd.DataFrame, topn: int = 5, min_abs: float = 1e-12):
-    """
-    Calculates local feature contributions (x * beta) for a single prediction.
-    This explains which features pushed the probability up (risk factors) or down (protective factors).
-    """
-    # Navigate through the CalibratedClassifierCV to get the underlying LR pipeline
     pipe = getattr(cal_lr, "base_estimator", None) or getattr(cal_lr, "estimator", None)
     if pipe is None or "preprocessor" not in pipe.named_steps or "model" not in pipe.named_steps:
         return [], []
     pre = pipe.named_steps["preprocessor"]
     lr  = pipe.named_steps["model"]
 
-    # Preprocess the input row and get model coefficients
     X = pre.transform(df_w)
     if hasattr(X, "toarray"):
         X = X.toarray()
     x = X.ravel()
     coef = lr.coef_.ravel()
 
-    # Element-wise product to find the contribution of each feature to the log-odds
     contrib = x * coef
     names = pre.get_feature_names_out()
 
-    # Get top positive contributors (risk factors), sorted descending
     idx_desc = np.argsort(contrib)[::-1]
     pos = [(names[i], float(contrib[i])) for i in idx_desc if contrib[i] >  min_abs][:topn]
 
-    # Get top negative contributors (protective factors), sorted ascending
     idx_asc = np.argsort(contrib)
     neg = [(names[i], float(contrib[i])) for i in idx_asc if contrib[i] < -min_abs][:topn]
-
     return pos, neg
 
-# A dictionary to hold the interpretations for each segment.
 SEGMENT_NOTES = {
     1: ("🔴 Segment 1 – High Risk",
         "Characterized by short employment history and/or low external scores. Applications should be routed for detailed review."),
@@ -204,8 +225,6 @@ SEGMENT_NOTES = {
         "Long employment history, good external scores. Suitable for expedited processes/premium products."),
 }
 
-# ---------- Dictionaries and functions for creating user-friendly feature names ----------
-# These are used to translate raw feature names (e.g., 'AMT_INCOME_TOTAL') into readable labels (e.g., 'Annual Income').
 PRETTY_NUM = {
     "AMT_INCOME_TOTAL": "Annual Income",
     "AMT_CREDIT": "Credit Amount",
@@ -227,9 +246,9 @@ PRETTY_CAT = {
     "NAME_INCOME_TYPE": "Income Type",
     "NAME_CONTRACT_TYPE": "Contract Type",
 }
+
 def _split_cat_raw(raw: str, cat_cols):
     name = raw.replace("cat__", "")
-    # Find the longest matching column name to handle cases where column names contain underscores
     match = None
     for c in sorted(cat_cols, key=len, reverse=True):
         if name == c or name.startswith(c + "_"):
@@ -239,8 +258,8 @@ def _split_cat_raw(raw: str, cat_cols):
         return None, name
     level = name[len(match) + 1 :] if len(name) > len(match) else ""
     return match, level
+
 def pretty_feature(raw_name: str, preprocessor) -> str:
-    """Cleans prefixes like 'num__' and 'cat__' and returns a readable feature name."""
     if raw_name.startswith("num__"):
         col = raw_name.replace("num__", "")
         return PRETTY_NUM.get(col, col.replace("_", " "))
@@ -251,82 +270,116 @@ def pretty_feature(raw_name: str, preprocessor) -> str:
         lvl_lbl = str(level).replace("_", " ")
         return f"{col_lbl} = {lvl_lbl}"
     return raw_name.replace("_", " ")
+
 def prettify_driver_list(drivers, preprocessor):
-    """Converts a list of raw driver names into a list of pretty names."""
     return [(pretty_feature(n, preprocessor), v) for n, v in drivers]
+
 def cat_opts(col, fallback):
-    """Gets the category levels for a dropdown from the config file, with a fallback list."""
     return OHE_CATS.get(col, fallback)
 
+# ---- Decision engine (with rule trace) ----
+def decide_with_trace(prob, thr, seg_id, cti):
+    """
+    Returns (decision, reasons:list[str], rule_tag:str, trace:dict)
+    """
+    margin = float(thr - prob)      # + ise eşik altı
+    near = margin < 0.02            # eşiğe yakın mı? (< 2 p.p.)
+    risky_seg = seg_id in [0, 1]    # riskli segmentler
+    high_cti = cti > 6              # aşırı borçluluk
+
+    decision = "🟢 Approve"
+    reasons  = [f"PD {prob*100:.1f}% < threshold {thr*100:.1f}%"]
+    rule_tag = "approve_default"
+
+    if prob >= thr:
+        decision = "🔴 Decline"
+        reasons  = [f"PD {prob*100:.1f}% ≥ threshold {thr*100:.1f}%"]
+        rule_tag = "decline_pd_over_thr"
+    elif (near and risky_seg) or high_cti:
+        decision = "🟡 Manual Review"
+        tag = "Segment 0/1 (near thr)" if (near and risky_seg) else f"CTI≈{cti:.1f}"
+        reasons  = [f"PD below threshold (margin {margin*100:.1f} p.p.)", tag]
+        rule_tag = "manual_near_or_cti"
+
+    trace = dict(
+        prob=float(prob), thr=float(thr), margin=float(margin),
+        near=bool(near), risky_seg=bool(risky_seg), high_cti=bool(high_cti),
+        seg_id=int(seg_id), cti=float(cti),
+    )
+    return decision, reasons, rule_tag, trace
+
 # -----------------------------
-# Top: User Input Form
+# Top: User Input Form + Presets
 # -----------------------------
 st.subheader("📋 Application Information")
 
-# Using st.form ensures that the app reruns only when the submit button is clicked.
+# Clamp YEARS_EMPLOYED to AGE before drawing widgets
+st.session_state["YEARS_EMPLOYED"] = min(
+    float(st.session_state.get("YEARS_EMPLOYED", 0.0)),
+    float(st.session_state.get("AGE_YEARS", 40.0))
+)
+
+# ⚡ Quick Presets (üstte butonlar)
+st.markdown("### ⚡ Quick Presets")
+cols = st.columns(len(PRESETS))
+for i, (name, vals) in enumerate(PRESETS.items()):
+    if cols[i].button(name, use_container_width=True, key=f"preset_{i}"):
+        apply_preset(vals)
+
+# Form (submit'e basılınca çalışır)
 with st.form("input_form"):
-    c1, c2, c3 = st.columns(3)  # Organize the form into three columns for a cleaner UI
+    c1, c2, c3 = st.columns(3)
+
     with c1:
-        age = st.number_input("Age (years)", min_value=18.0, max_value=85.0, value=40.0, step=1.0)
-
-        # Dynamic max value for Years Employed based on Age (in-field guardrail)
-        years_emp = st.number_input(
-            "Years Employed",
-            min_value=0.0,
-            max_value=float(age),                 # Dynamically set the upper limit
-            value=min(5.0, float(age)),           # Also pull the default value into a safe range
-            step=0.5
-        )
-
-        income   = st.number_input("Total Annual Income", min_value=1000.0, value=180_000.0, step=1000.0)
-        children = st.number_input("Number of Children", min_value=0, max_value=10, value=0, step=1)
+        st.number_input("Age (years)", 18.0, 85.0, step=1.0, key="AGE_YEARS")
+        st.number_input("Years Employed", 0.0, float(st.session_state.get("AGE_YEARS", 40.0)),
+                        step=0.5, key="YEARS_EMPLOYED")
+        st.number_input("Total Annual Income", min_value=1000.0, step=1000.0, key="AMT_INCOME_TOTAL")
+        st.number_input("Number of Children", 0, 10, step=1, key="CNT_CHILDREN")
 
     with c2:
-        amt_credit  = st.number_input("Credit Amount", 1000.0, value=600_000.0, step=1000.0)
-        amt_annuity = st.number_input("Annuity (Yearly Payment)", 1.0, value=30_000.0, step=500.0)
-        ext2        = st.number_input("EXT_SOURCE_2 (0–1)", 0.0, 1.0, 0.55, 0.01)
-        ext3        = st.number_input("EXT_SOURCE_3 (0–1)", 0.0, 1.0, 0.50, 0.01)
-    with c3:
-        code_gender = st.selectbox("Gender (CODE_GENDER)", cat_opts("CODE_GENDER", ["F","M","XNA"]), index=0)
-        family      = st.selectbox("Marital Status", cat_opts("NAME_FAMILY_STATUS",
-                                ["Married","Single / not married","Civil marriage","Separated","Widow"]), index=0)
-        edu         = st.selectbox("Education", cat_opts("NAME_EDUCATION_TYPE",
-                                ["Secondary / secondary special","Higher education","Incomplete higher",
-                                 "Lower secondary","Academic degree"]), index=0)
-        income_type = st.selectbox("Income Type", cat_opts("NAME_INCOME_TYPE",
-                                ["Working","State servant","Commercial associate","Pensioner",
-                                 "Unemployed","Student","Businessman","Maternity leave"]), index=0)
-        contract    = st.selectbox("Contract Type", cat_opts("NAME_CONTRACT_TYPE",
-                                ["Cash loans","Revolving loans"]), index=0)
+        st.number_input("Credit Amount", 1000.0, step=1000.0, key="AMT_CREDIT")
+        st.number_input("Annuity (Yearly Payment)", 1.0, step=500.0, key="AMT_ANNUITY")
+        st.number_input("EXT_SOURCE_2 (0–1)", min_value=0.0, max_value=1.0, step=0.01, key="EXT_SOURCE_2")
+        st.number_input("EXT_SOURCE_3 (0–1)", min_value=0.0, max_value=1.0, step=0.01, key="EXT_SOURCE_3")
 
-    # This button triggers the form submission and the logic below.
+    with c3:
+        st.selectbox("Gender (CODE_GENDER)", cat_opts("CODE_GENDER", ["F","M","XNA"]), key="CODE_GENDER")
+        st.selectbox("Marital Status", cat_opts("NAME_FAMILY_STATUS",
+                    ["Married","Single / not married","Civil marriage","Separated","Widow"]), key="NAME_FAMILY_STATUS")
+        st.selectbox("Education", cat_opts("NAME_EDUCATION_TYPE",
+                    ["Secondary / secondary special","Higher education","Incomplete higher","Lower secondary","Academic degree"]),
+                    key="NAME_EDUCATION_TYPE")
+        st.selectbox("Income Type", cat_opts("NAME_INCOME_TYPE",
+                    ["Working","State servant","Commercial associate","Pensioner","Unemployed","Student","Businessman","Maternity leave"]),
+                    key="NAME_INCOME_TYPE")
+        st.selectbox("Contract Type", cat_opts("NAME_CONTRACT_TYPE", ["Cash loans","Revolving loans"]),
+                    key="NAME_CONTRACT_TYPE")
+
     submitted = st.form_submit_button("Get Score")
 
 # -----------------------------
-# When submitted: validate -> compute -> store results or hide
+# When submitted: validate -> compute -> store results
 # -----------------------------
 if submitted:
-    # 1. Build a dictionary from the raw form inputs
     row = {
-        "CODE_GENDER": code_gender,
-        "CNT_CHILDREN": int(children),
-        "NAME_FAMILY_STATUS": family,
-        "NAME_EDUCATION_TYPE": edu,
-        "AMT_INCOME_TOTAL": float(income),
-        "NAME_INCOME_TYPE": income_type,
-        "NAME_CONTRACT_TYPE": contract,
-        "AMT_CREDIT": float(amt_credit),
-        "AMT_ANNUITY": float(amt_annuity),
-        "EXT_SOURCE_2": float(ext2),
-        "EXT_SOURCE_3": float(ext3),
-        "AGE_YEARS": float(age),
-        "YEARS_EMPLOYED": float(years_emp),
+        "CODE_GENDER": st.session_state["CODE_GENDER"],
+        "CNT_CHILDREN": int(st.session_state["CNT_CHILDREN"]),
+        "NAME_FAMILY_STATUS": st.session_state["NAME_FAMILY_STATUS"],
+        "NAME_EDUCATION_TYPE": st.session_state["NAME_EDUCATION_TYPE"],
+        "AMT_INCOME_TOTAL": float(st.session_state["AMT_INCOME_TOTAL"]),
+        "NAME_INCOME_TYPE": st.session_state["NAME_INCOME_TYPE"],
+        "NAME_CONTRACT_TYPE": st.session_state["NAME_CONTRACT_TYPE"],
+        "AMT_CREDIT": float(st.session_state["AMT_CREDIT"]),
+        "AMT_ANNUITY": float(st.session_state["AMT_ANNUITY"]),
+        "EXT_SOURCE_2": float(st.session_state["EXT_SOURCE_2"]),
+        "EXT_SOURCE_3": float(st.session_state["EXT_SOURCE_3"]),
+        "AGE_YEARS": float(st.session_state["AGE_YEARS"]),
+        "YEARS_EMPLOYED": float(st.session_state["YEARS_EMPLOYED"]),
     }
 
-    # 2. Validate the inputs FIRST
     errs, warns = validate_row_inputs(row)
     if errs or (BLOCK_ON_WARNINGS and warns):
-        # If invalid, clear any previous results and mark the run as invalid.
         st.session_state["valid_run"] = False
         st.session_state["results"] = None
 
@@ -337,21 +390,16 @@ if submitted:
             st.warning("Fix these warnings to continue:")
             for w in warns: st.write(f"- {w}")
     else:
-        # If inputs are valid, proceed with calculations.
         for w in warns:
             st.warning(w)
 
-        # 3. Apply the full data preparation pipeline
         df = pd.DataFrame([row], dtype=object)
-        df = compute_engineered(df) # Calculate derived features
-        df = df.reindex(columns=INPUT_COLS, fill_value=np.nan)  # Ensure schema consistency
-        df_w = apply_winsor(df) # Apply Winsorization
+        df = compute_engineered(df)
+        df = df.reindex(columns=INPUT_COLS, fill_value=np.nan)
+        df_w = apply_winsor(df)
 
-        # --- Run Models ---
-        # Get the final calibrated probability from the Logistic Regression model.
         prob = float(CAL_LR.predict_proba(df_w)[0, 1])
 
-        # Get the top factors influencing the score for interpretability.
         drivers_pos, drivers_neg = local_lr_drivers_signed(CAL_LR, df_w, topn=5)
         try:
             pipe = getattr(CAL_LR, "base_estimator", None) or getattr(CAL_LR, "estimator", None)
@@ -359,28 +407,14 @@ if submitted:
             drivers_pos = prettify_driver_list(drivers_pos, pre)
             drivers_neg = prettify_driver_list(drivers_neg, pre)
         except Exception:
-            pass    # Fail silently if drivers can't be computed
+            pass
 
-        # Get the segment assignment for contextual information.
         seg_id = int(KM3.predict(PRE_KM.transform(df_w))[0])
         seg_title, seg_note = SEGMENT_NOTES.get(seg_id, (f"Segment {seg_id}", ""))
 
-        # 4. Apply the simple policy layer for the final recommendation
-        decision = "🟢 Approve"
-        reasons = [f"PD {prob*100:.1f}% < threshold {THR*100:.1f}%"]
-        if prob >= THR:
-            decision = "🔴 Decline"
-            reasons = [f"PD {prob*100:.1f}% ≥ threshold {THR*100:.1f}%"]
-        else:   # Below threshold, but check for edge cases
-            margin = THR - prob
-            cti = float(df["CREDIT_TO_INCOME_RATIO"].iloc[0])
-            # If the score is very close to the threshold and the customer is in a risky segment, or if CTI is too high...
-            if (margin < 0.02 and seg_id in [0,1]) or (cti > 6):
-                decision = "🟡 Manual Review"
-                tag = "Segment 0/1" if seg_id in [0,1] else f"CTI≈{cti:.1f}"
-                reasons = [f"PD below threshold (margin {margin*100:.1f} p.p.)", tag]
+        cti = float(df["CREDIT_TO_INCOME_RATIO"].iloc[0])
+        decision, reasons, rule_tag, trace = decide_with_trace(prob, THR, seg_id, cti)
 
-        # 5. Store all results in session state for rendering.
         st.session_state["results"] = {
             "prob": prob,
             "decision": decision,
@@ -390,13 +424,15 @@ if submitted:
             "seg_title": seg_title,
             "seg_note": seg_note,
             "df": df,
+            "trace": trace,
+            "rule_tag": rule_tag,
         }
         st.session_state["valid_run"] = True
 
 # -----------------------------
-# RENDER: This entire section runs only if we have a valid and successful run.
+# RENDER (valid run)
 # -----------------------------
-# Retrieve the results stored in the session state from the computation step.
+
 res = st.session_state.get("results")
 if st.session_state.get("valid_run") and res:
 
@@ -407,16 +443,39 @@ if st.session_state.get("valid_run") and res:
         st.metric("Probability of Default (PD)", f"{res['prob']*100:.1f}%")
     with col_decision:
         st.metric("Recommendation", res["decision"])
-    # Display the reasons for the recommendation.
+
+    # Neden?
+    t = res["trace"]
+    with st.container(border=True):
+        st.markdown("#### 🧭 Why this decision?")
+        st.markdown(
+            f"- **Rule fired:** `{res['rule_tag']}`  \n"
+            f"- **PD / Threshold:** **{t['prob']*100:.1f}%** / **{t['thr']*100:.1f}%** "
+            f"(margin: {t['margin']*100:.1f} p.p.)  \n"
+            f"- **Segment:** **{res['seg_title']}** (id={t['seg_id']})  \n"
+            f"- **CTI:** **{t['cti']:.2f}**  \n"
+            f"- **Near threshold (<2 p.p.)?** {'✅' if t['near'] else '❌'}  \n"
+            f"- **Risky segment (0/1)?** {'✅' if t['risky_seg'] else '❌'}  \n"
+            f"- **High CTI (>6)?** {'✅' if t['high_cti'] else '❌'}"
+        )
+        with st.expander("Show decision logic (pseudo)"):
+            st.code(
+                "if PD >= THR: Decline\n"
+                "elif (margin < 0.02 and segment in {0,1}) or (CTI > 6): Manual Review\n"
+                "else: Approve",
+                language="text",
+            )
+
+    # Gerekçeler + eşik
     st.caption(" • ".join(res["reasons"]) + f" • Threshold (Youden): **{THR:.4f}**")
 
-    # Display the top factors that increased or decreased the risk score.
+    # Drivers
     if res.get("drivers_pos"):
         st.caption("**Top factors increasing PD:** " + ", ".join(name for name, _ in res["drivers_pos"]))
     if res.get("drivers_neg"):
         st.caption("**Top factors decreasing PD:** " + ", ".join(name for name, _ in res["drivers_neg"]))
 
-    # Display the overall model performance metrics.
+    # Model card
     if METRICS:
         st.markdown("**Model Card (Test Set Summary)**")
         mk = METRICS
@@ -430,12 +489,11 @@ if st.session_state.get("valid_run") and res:
 
     st.divider()
 
-     # --------- BOTTOM SECTION: Segment interpretation ---------
+    # --------- BOTTOM SECTION: Segment interpretation ---------
     st.subheader("📊 Customer Segment & Interpretation (K-Means, k=3)")
     st.markdown(f"**Estimated Segment:** {res['seg_title']}")
     st.caption(res["seg_note"])
 
-    # Display the main engineered ratios for the user's input.
     show_cols = ["CREDIT_TO_INCOME_RATIO","ANNUITY_TO_INCOME_RATIO","EMPLOYED_TO_AGE_RATIO","CREDIT_TERM"]
     pretty = (res["df"][show_cols]
               .rename(columns={
@@ -451,7 +509,6 @@ if st.session_state.get("valid_run") and res:
         st.dataframe(res["df"], use_container_width=True)
 
 else:
-    # If we are here, it's either the first run or the last run was invalid.
     st.info("Fill out the form above and press **Get Score**. Results render only when inputs pass validation.")
 
 # -----------------------------
@@ -459,7 +516,6 @@ else:
 # -----------------------------
 @st.cache_resource
 def load_scatter_sample():
-    """Load the pre-generated sample data for the background of the scatter plot."""
     p_parq = ART / "scatter_sample.parquet"
     p_csv  = ART / "scatter_sample.csv"
     if p_parq.exists():
@@ -470,7 +526,6 @@ def load_scatter_sample():
 
 sample_df = load_scatter_sample()
 
-# Render the map only if the last run was valid and successful.
 res = st.session_state.get("results")
 if st.session_state.get("valid_run") and res:
     st.markdown("### 📍 Your Position (Segment Map)")
@@ -479,15 +534,12 @@ if st.session_state.get("valid_run") and res:
         st.info("Background sample data not found. Please generate the sample file in the notebook "
                 "and save it as `artifacts/scatter_sample.parquet`.")
     else:
-        # --- add these 3 lines right before creating the figure ---
         bg  = st.get_option("theme.backgroundColor") or "#FFFFFF"
         sec = st.get_option("theme.secondaryBackgroundColor") or "#F5F7FB"
-        txt = st.get_option("theme.textColor") or "#111827"
 
-        fig, ax = plt.subplots(figsize=(12, 8), facecolor=bg)  # <-- facecolor ver
-        ax.set_facecolor(sec)       
-        fig, ax = plt.subplots(figsize=(12, 8))
-        # Draw the background scatter plot with the sample data.
+        fig, ax = plt.subplots(figsize=(12, 8), facecolor=bg)
+        ax.set_facecolor(sec)
+
         sns.scatterplot(
             data=sample_df,
             x="CREDIT_TO_INCOME_RATIO",
@@ -500,11 +552,9 @@ if st.session_state.get("valid_run") and res:
             legend=True
         )
 
-        # Get the user's coordinates from the results.
         user_cti   = float(res["df"]["CREDIT_TO_INCOME_RATIO"].iloc[0])
         user_years = float(res["df"]["YEARS_EMPLOYED"].iloc[0])
 
-        # Overlay the user's application as a large 'X' on the plot.
         ax.scatter([user_cti], [user_years],
                    marker="X", s=240, linewidths=1.5, edgecolor="black",
                    color="red", zorder=10, label="You Are Here")
@@ -514,13 +564,11 @@ if st.session_state.get("valid_run") and res:
                     arrowprops=dict(arrowstyle="->", lw=1.2),
                     fontsize=11)
 
-        # Dynamically adjust axis limits for better visualization, preventing outliers from squeezing the plot.
         x_max = max(user_cti, sample_df["CREDIT_TO_INCOME_RATIO"].quantile(0.995))
         y_max = max(user_years, sample_df["YEARS_EMPLOYED"].quantile(0.995))
         ax.set_xlim(left=0, right=x_max * 1.05)
         ax.set_ylim(bottom=0, top=y_max * 1.05)
 
-        # Ensure the "You Are Here" label appears correctly in the legend.
         handles, labels = ax.get_legend_handles_labels()
         if "You Are Here" not in labels:
             handles.append(plt.Line2D([0], [0], marker='X', color='w',
@@ -535,6 +583,3 @@ if st.session_state.get("valid_run") and res:
         ax.grid(True, alpha=0.3)
 
         st.pyplot(fig)
-# If not a valid run, we draw nothing; the info/error messages above will be displayed instead.
-
-
