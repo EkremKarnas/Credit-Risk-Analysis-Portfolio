@@ -527,18 +527,32 @@ else:
 # -----------------------------
 @st.cache_resource
 def load_scatter_sample():
+    """Load the pre-generated sample data for the background of the scatter plot."""
     p_parq = ART / "scatter_sample.parquet"
     p_csv  = ART / "scatter_sample.csv"
+
+    # Önce Parquet'i dene, ama pyarrow yoksa/bozuksa güvenli şekilde CSV'ye düş
     if p_parq.exists():
-        return pd.read_parquet(p_parq)
+        try:
+            return pd.read_parquet(p_parq)  # engine belirtmesen de olur; yoksa ImportError atar
+        except Exception as e:
+            # Cloud'da pyarrow kurulu değilse ya da dosya sorunluysa buraya düşeriz
+            pass
+
     if p_csv.exists():
-        return pd.read_csv(p_csv)
+        try:
+            return pd.read_csv(p_csv)
+        except Exception:
+            pass
+
     return None
 
-sample_df = load_scatter_sample()
+# sample_df = load_scatter_sample()
 
+# Render the map only if the last run was valid and successful.
 res = st.session_state.get("results")
 if st.session_state.get("valid_run") and res:
+    sample_df = load_scatter_sample()   # <-- buraya taşıdık
     st.markdown("### 📍 Your Position (Segment Map)")
 
     if sample_df is None:
