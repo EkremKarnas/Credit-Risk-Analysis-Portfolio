@@ -46,7 +46,7 @@ def sync_mpl_with_streamlit_theme():
 
 sync_mpl_with_streamlit_theme()
 st.title("🏦 Credit Risk Simulator")
-st.caption("Home Credit (application_train.csv) • Calibrated Logistic Regression (final decision) + K-Means Segment Interpretation")
+st.caption("Home Credit • Calibrated Logistic Regression + K-Means Segment Interpretation")
 
 ART = Path("artifacts")
 
@@ -84,7 +84,7 @@ for k, v in DEFAULTS.items():
 
 # ---- Quick Presets (3 personas for easy demonstration) -------------------------
 PRESETS = {
-    "🟢 Low Risk (Pro)": {
+    "🟢 Low Risk (Stable)": {
         "AGE_YEARS": 46.0, "YEARS_EMPLOYED": 18.0,
         "AMT_INCOME_TOTAL": 1_200_000.0, "AMT_CREDIT": 800_000.0, "AMT_ANNUITY": 120_000.0,
         "EXT_SOURCE_2": 0.72, "EXT_SOURCE_3": 0.70, "CNT_CHILDREN": 1,
@@ -92,16 +92,20 @@ PRESETS = {
         "NAME_EDUCATION_TYPE": "Higher education", "NAME_INCOME_TYPE": "Working",
         "NAME_CONTRACT_TYPE": "Cash loans",
     },
-    "🟠 Medium Debt": {
-        "AGE_YEARS": 39.0, "YEARS_EMPLOYED": 7.0,
-        "AMT_INCOME_TOTAL": 600_000.0, "AMT_CREDIT": 1_500_000.0, "AMT_ANNUITY": 210_000.0,
-        "EXT_SOURCE_2": 0.50, "EXT_SOURCE_3": 0.48, "CNT_CHILDREN": 2,
+    "🟠 High Debt Burden": {
+        "AGE_YEARS": 45.0, "YEARS_EMPLOYED": 4.8,
+        "AMT_INCOME_TOTAL": 180_000.0,
+        "AMT_CREDIT": 1_152_000.0,      # 180,000 * 6.4  → CTI ≈ 6.40
+        "AMT_ANNUITY": 43_150.0,        # 1,152,000 / 26.7 ≈ 43,146
+        "EXT_SOURCE_2": 0.55, "EXT_SOURCE_3": 0.55,
+        "CNT_CHILDREN": 2,
         "CODE_GENDER": "M", "NAME_FAMILY_STATUS": "Married",
-        "NAME_EDUCATION_TYPE": "Incomplete higher", "NAME_INCOME_TYPE": "Businessman",
+        "NAME_EDUCATION_TYPE": "Higher education",
+        "NAME_INCOME_TYPE": "Working",
         "NAME_CONTRACT_TYPE": "Cash loans",
     },
      # 🔴 High Risk (Short Emp.): Very short employment, low external scores, moderate CTI (2–4)
-    "🔴 High Risk (Short Emp.)": {
+    "🔴 High Risk (Fragile)": {
         "AGE_YEARS": 41.0, "YEARS_EMPLOYED": 1.0,     # Short employment duration
         "AMT_INCOME_TOTAL": 160_000.0,
         "AMT_CREDIT": 480_000.0,                      # CTI ≈ 3.0 (moderate)
@@ -114,7 +118,6 @@ PRESETS = {
         "NAME_CONTRACT_TYPE": "Cash loans",
     },
 }
-
 
 
 def apply_preset(values: dict):
@@ -397,7 +400,7 @@ st.session_state["YEARS_EMPLOYED"] = min(
 )
 
 # ⚡ Quick Presets (buttons at the top for easy demonstration)
-st.markdown("### ⚡ Quick Presets")
+st.markdown("### Quick Presets")
 cols = st.columns(len(PRESETS))
 for i, (name, vals) in enumerate(PRESETS.items()):
     if cols[i].button(name, use_container_width=True, key=f"preset_{i}"):
@@ -418,11 +421,11 @@ with st.form("input_form"):
     with c2:
         st.number_input("Credit Amount", 1000.0, step=1000.0, key="AMT_CREDIT")
         st.number_input("Annuity (Yearly Payment)", 1.0, step=500.0, key="AMT_ANNUITY")
-        st.number_input("EXT_SOURCE_2 (0–1)", min_value=0.0, max_value=1.0, step=0.01, key="EXT_SOURCE_2")
-        st.number_input("EXT_SOURCE_3 (0–1)", min_value=0.0, max_value=1.0, step=0.01, key="EXT_SOURCE_3")
+        st.number_input("Extra Source 2 (0–1)", min_value=0.0, max_value=1.0, step=0.01, key="EXT_SOURCE_2")
+        st.number_input("Extra Source 3 (0–1)", min_value=0.0, max_value=1.0, step=0.01, key="EXT_SOURCE_3")
 
     with c3:
-        st.selectbox("Gender (CODE_GENDER)", cat_opts("CODE_GENDER", ["F","M","XNA"]), key="CODE_GENDER")
+        st.selectbox("Gender", cat_opts("CODE_GENDER", ["F","M","XNA"]), key="CODE_GENDER")
         st.selectbox("Marital Status", cat_opts("NAME_FAMILY_STATUS",
                     ["Married","Single / not married","Civil marriage","Separated","Widow"]), key="NAME_FAMILY_STATUS")
         st.selectbox("Education", cat_opts("NAME_EDUCATION_TYPE",
