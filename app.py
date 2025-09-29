@@ -273,13 +273,25 @@ def local_lr_drivers_signed(cal_lr, df_w: pd.DataFrame, topn: int = 5, min_abs: 
     return pos, neg
 
 # A dictionary to hold the interpretations for each segment. This is the content layer.
+# SEGMENT_NOTES = {
+#     1: ("🔴 Segment 1 – High Risk",
+#         "Characterized by short employment history and/or low external scores. Applications should be routed for detailed review."),
+#     0: ("🟠 Segment 0 – Medium-High Risk (High Debt Burden)",
+#         "High credit-to-income ratio (CTI↑). Debt restructuring or cautious limits are recommended."),
+#     2: ("🟢 Segment 2 – Low Risk (Stable Professionals)",
+#         "Long employment history, good external scores. Suitable for expedited processes/premium products."),
+# }
+
+# A dictionary to hold the interpretations for each segment. This is the content layer.
 SEGMENT_NOTES = {
-    1: ("🔴 Segment 1 – High Risk",
-        "Characterized by short employment history and/or low external scores. Applications should be routed for detailed review."),
-    0: ("🟠 Segment 0 – Medium-High Risk (High Debt Burden)",
-        "High credit-to-income ratio (CTI↑). Debt restructuring or cautious limits are recommended."),
     2: ("🟢 Segment 2 – Low Risk (Stable Professionals)",
-        "Long employment history, good external scores. Suitable for expedited processes/premium products."),
+        "Profile defined by long employment (avg. 18 years) and high external scores. A reliable customer base suitable for expedited approvals."),
+    
+    0: ("🟠 Segment 0 – High Debt Burden (CTI↑)",
+        "This profile's primary risk driver is a high Credit-to-Income Ratio (avg. >6). Recommend cautious limits and close monitoring."),
+        
+    1: ("🔴 Segment 1 – High Risk (Short Tenure & Low External)",
+        "Defined by a combination of short employment (avg. <4 years) and low external scores, making this the highest-risk group. Strict credit policies should apply."),
 }
 
 # --- Dictionaries and functions for creating user-friendly feature names ---
@@ -359,19 +371,19 @@ def decide_with_trace(prob, thr, seg_id, cti):
     if below:
         decision = "🟢 Approve"
         reasons  = [f"PD {prob*100:.1f}% < threshold {thr*100:.1f}%"]
-        rule_tag = "approve_default"
+        rule_tag = "Approve — PD below threshold"
 
         # Escalate to Manual Review if score is very close to threshold AND in a risky segment, OR if debt is too high
         if (near and risky_seg) or high_cti:
             decision = "🟡 Manual Review"
             tag = "Segment 0/1 (near thr)" if (near and risky_seg) else f"CTI≈{cti:.1f}"
             reasons = [f"PD below threshold (margin {abs(delta)*100:.1f} p.p.)", tag]
-            rule_tag = "manual_near_or_cti"
+            rule_tag = "Manual Review — Near threshold in risky segment or CTI > 6"
     else:
         # Above threshold: Decline
         decision = "🔴 Decline"
         reasons  = [f"PD {prob*100:.1f}% ≥ threshold {thr*100:.1f}%"]
-        rule_tag = "decline_pd_over_thr"
+        rule_tag = "Decline — PD above threshold"
 
     # Create a trace dictionary to explain the decision logic in the UI
     trace = dict(
@@ -421,8 +433,8 @@ with st.form("input_form"):
     with c2:
         st.number_input("Credit Amount", 1000.0, step=1000.0, key="AMT_CREDIT")
         st.number_input("Annuity (Yearly Payment)", 1.0, step=500.0, key="AMT_ANNUITY")
-        st.number_input("Extra Source 2 (0–1)", min_value=0.0, max_value=1.0, step=0.01, key="EXT_SOURCE_2")
-        st.number_input("Extra Source 3 (0–1)", min_value=0.0, max_value=1.0, step=0.01, key="EXT_SOURCE_3")
+        st.number_input("External Source 2 (0–1)", min_value=0.0, max_value=1.0, step=0.01, key="EXT_SOURCE_2")
+        st.number_input("External Source 3 (0–1)", min_value=0.0, max_value=1.0, step=0.01, key="EXT_SOURCE_3")
 
     with c3:
         st.selectbox("Gender", cat_opts("CODE_GENDER", ["F","M","XNA"]), key="CODE_GENDER")
@@ -556,7 +568,7 @@ if st.session_state.get("valid_run") and res:
 
         # Display common information for all cases
         st.markdown(
-            f"- **Rule fired:** `{res.get('rule_tag','')}`  \n"
+            f"- **Decision Logic:** `{res.get('rule_tag','')}`  \n"
             f"- **PD / Threshold:** **{prob*100:.1f}%** / **{thr*100:.1f}%** "
             f"({dir_word} {abs(delta_pp):.1f} p.p.)  \n"
             f"- **Segment:** **{res['seg_title']}** (id={seg_id})  \n"
@@ -609,7 +621,7 @@ if st.session_state.get("valid_run") and res:
     st.divider()
 
     # --------- BOTTOM SECTION: Segment interpretation ---------
-    st.subheader("📊 Customer Segment & Interpretation (K-Means, k=3)")
+    st.subheader("📊 Customer Segment & Interpretation (K-Means)")
     st.markdown(f"**Estimated Segment:** {res['seg_title']}")
     st.caption(res["seg_note"])
 
