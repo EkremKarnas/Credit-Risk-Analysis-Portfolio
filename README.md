@@ -29,9 +29,9 @@ repo-root/
 │   ├── kmeans_k3.joblib
 │   ├── threshold.json
 │   └── metrics.json
-├── notebooks/                           # Development notebooks
-│   ├── 1_Customer_Segmentation_(K-Means).ipynb
-│   └── 2_Credit_Scoring_Model_(Logistic_Regression).ipynb
+├── 1_Customer_Segmentation_(K-Means).ipynb                     
+├── 2_Credit_Scoring_Model_(Logistic_Regression).ipynb
+│  
 ├── assets/                              # Static assets for README/app (screenshots, icons, etc.)
 │   └── app_preview.png
 ├── requirements.txt                     # Python dependencies
