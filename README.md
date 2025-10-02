@@ -2,7 +2,7 @@
 
 An end-to-end credit risk project featuring customer **segmentation (K-Means)** and a **credit scoring model (calibrated Logistic Regression)**, deployed as an interactive **Streamlit** application.
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://<streamlit-uygulamanizin-linki-buraya>.streamlit.app/)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://credit-risk-analysis-portfolio.streamlit.app)
 
 ---
 
